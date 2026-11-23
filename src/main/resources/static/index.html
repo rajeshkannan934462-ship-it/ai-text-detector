@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI Text Detector</title>
+    <style>
+        :root { --bg:#f6f8fb; --card:#fff; --text:#1c2733; --muted:#6b7785; --line:#dde3ea;
+                --human:#2a9d6f; --ai:#d9534f; --accent:#1f3a5f; }
+        @media (prefers-color-scheme: dark) {
+          :root { --bg:#12171d; --card:#1a2129; --text:#e6ebf0; --muted:#93a0ad; --line:#2b3540; --accent:#6ea8e6; }
+        }
+        * { box-sizing: border-box; }
+        body { margin:0; padding:24px 14px; background:var(--bg); color:var(--text);
+               font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        .wrap { max-width: 760px; margin: 0 auto; }
+        h1 { margin: 0 0 4px; font-size: 26px; color: var(--accent); }
+        .sub { color: var(--muted); margin: 0 0 18px; }
+        .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; }
+        textarea { width:100%; min-height:200px; resize:vertical; padding:12px; font-size:15px; line-height:1.5;
+                   border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--text); }
+        .row { display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:10px; flex-wrap:wrap; }
+        #count { color:var(--muted); font-size:14px; }
+        button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 20px;
+                 font-size:15px; cursor:pointer; }
+        button:disabled { opacity:.6; cursor:wait; }
+        #error { color:var(--ai); margin-top:12px; display:none; }
+        #result { display:none; margin-top:18px; }
+        .bar { display:flex; height:30px; border-radius:8px; overflow:hidden; border:1px solid var(--line); }
+        #barHuman { background:var(--human); transition:width .4s; }
+        #barAi { background:var(--ai); transition:width .4s; }
+        .labels { display:flex; justify-content:space-between; margin-top:8px; font-weight:600; }
+        .note { margin-top:18px; font-size:13px; color:var(--muted); line-height:1.5; }
+        .note a { color:var(--accent); }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>AI Text Detector</h1>
+    <p class="sub">Paste an English essay (30+ words). The model estimates whether it looks human-written or AI-generated.</p>
+
+    <div class="card">
+        <textarea id="text" placeholder="Paste your text here..."></textarea>
+        <div class="row">
+            <span id="count">0 words</span>
+            <button id="btn">Check</button>
+        </div>
+        <div id="error"></div>
+
+        <div id="result">
+            <div class="bar">
+                <div id="barHuman"></div>
+                <div id="barAi"></div>
+            </div>
+            <div class="labels">
+                <span>Human: <span id="humanPct">0</span>%</span>
+                <span>AI: <span id="aiPct">0</span>%</span>
+            </div>
+        </div>
+    </div>
+
+    <p class="note">
+        This is an estimate, not proof of authorship. The model (TF-IDF + Naive Bayes, built in Java with Weka)
+        scored 97.75% on a held-out split of its own dataset, but real-world accuracy is likely lower, especially on
+        short text or text from other AI models. Please do not use it to accuse anyone.
+    </p>
+</div>
+
+<script>
+    const textEl = document.getElementById('text');
+    const countEl = document.getElementById('count');
+    const btn = document.getElementById('btn');
+    const errEl = document.getElementById('error');
+    const resEl = document.getElementById('result');
+
+    function wordCount(t) {
+      t = t.trim();
+      return t ? t.split(/\s+/).length : 0;
+    }
+
+    textEl.addEventListener('input', () => {
+      countEl.textContent = wordCount(textEl.value) + ' words';
+    });
+
+    btn.addEventListener('click', async () => {
+      errEl.style.display = 'none';
+      resEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      try {
+        const r = await fetch('/api/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: textEl.value })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Something went wrong');
+
+        document.getElementById('humanPct').textContent = data.human;
+        document.getElementById('aiPct').textContent = data.ai;
+        document.getElementById('barHuman').style.width = data.human + '%';
+        document.getElementById('barAi').style.width = data.ai + '%';
+        resEl.style.display = 'block';
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Check';
+      }
+    });
+</script>
+</body>
+</html>
